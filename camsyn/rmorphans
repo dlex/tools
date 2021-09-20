@@ -1,0 +1,18 @@
+#! /bin/bash
+
+# Usage: rmorphans
+# Deletes *.ufraw files from the current directory that has no companion files beside (are orphans)
+
+for i in *.ufraw
+do 
+	nm=`expr "$i" : '\(.*\)\..*'`
+	j=0
+	for jm in $nm.*; 
+	do
+		let j=j+1
+	done
+	if [[ $j == 1 ]]
+	then
+		rm $i
+	fi
+done

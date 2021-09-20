@@ -1,0 +1,34 @@
+#! /bin/bash
+
+# Usage: camsync [<mountpoint_path>]
+# Default mountpoint path is Nikon SD mountpoint
+#
+# Perfoms simultaneous file transfer from SD to local directory and JPEG conversion
+# See camsyn2_* for details of transfer and conversion
+
+# Constants
+#c_camera_device="/dev/sda1"
+c_camera_name="NIKON"
+c_destroot="$PWD"
+
+
+# Determine mountpoint by looking up where sda1 is mounted
+if [ $# == 0 ]; then
+    cam_mount=`mount | grep $c_camera_name`
+    if [ $#cam_mount == 0 ]; then
+        echo Camera mount not found
+        exit 1
+    fi
+    mountpoint=`echo "$cam_mount" | perl -n -e "print $+{mntpoint} if / on (?<mntpoint>.+) type /"`
+else
+    mountpoint="$1"
+fi
+
+#echo Sync from \"$mountpoint\"
+if [ ! -d "$mountpoint" ]; then
+	echo Cannot access mountpoint "$mountpoint"
+	exit 1
+fi
+
+# Proceed
+./camsyn2_copy "$mountpoint" | ./camsyn2_postproc

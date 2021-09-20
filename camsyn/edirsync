@@ -1,0 +1,24 @@
+#! /bin/bash
+
+# Usage: edirsync <source_dir> <dest_dir>
+# Removes files from the dest_dir that are missing from source_dir
+
+if [[ $# != 2 ]]
+then
+	echo Usage: edirsync source_dir dest_dir
+	exit 1
+fi
+
+root=$PWD
+pushd "$2"
+echo Root $root
+
+for f in *
+do
+	if [ ! -e "$root/$1/$f" ] 
+	then
+		rm $f
+	fi
+done
+
+popd

@@ -1,0 +1,51 @@
+#! /bin/bash
+
+# Usage: camsyn2_postproc
+# Feed list of raw files to stdin
+#
+# At the same location with each source file, subdirectories 'ex' and 'wa' are 
+# populated with photos in JPEG format, putting screen-view quality pictures to 'ex'
+# and web album quality pictures to 'wa'. UFRaw ID files are placed besides them.
+
+# Generic UFRaw settings
+ufraw_generic="--wb=camera --curve=linear --clip=film --wavelet-denoising-threshold=5 --exposure=auto --saturation=1.07"
+
+# Loop through all subdirs supported
+
+while read file
+do
+
+	# Determine source file extension and convert it to lower case
+	#extension=`echo ${file##*.} | tr "[:upper:]" "[:lower:]"`
+	extension=`expr "$file" : '.*\(\..*\)' | tr "[:upper:]" "[:lower:]"`
+	d=`dirname $file`
+
+	# Postprocessing depends on file type
+	if [[ "$extension" == ".nef" ]] || [[ "$extension" == ".ngf" ]]; then
+
+		# Generate regular preview
+		if [ ! -d "$d/ex" ]; then
+			mkdir "$d/ex"
+		fi
+		ufraw-batch $ufraw_generic \
+			--out-type=jpeg --compression=92 --create-id=also --overwrite \
+			--out-path="$d/ex" "$file"
+
+		# Web preview
+		#if [ ! -d "$d/ew" ]; then
+		#	mkdir "$d/ew"
+		#fi
+		#ufraw-batch $ufraw_generic \
+		#  --out-type=jpeg --size=800 --compression=94 --create-id=also --overwrite \
+		#  --out-path="$d/ew" "$file"
+
+	elif [[ "$extension" == ".jpg" ]]; then
+		echo "WARNING: this is JPEG file, previews are not generated"
+	elif [[ "$extension" == ".tif" ]]; then
+		echo "WARNING: this is TIFF file, previews are not generated"
+	else
+		echo "WARNING: unsupported file extension: '$extension'"
+	fi
+
+done
+

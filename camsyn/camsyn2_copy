@@ -1,0 +1,108 @@
+#! /bin/bash
+
+# Usage: camsyn2_copy <mountpoint_path>
+# Default mountpoint path is Nikon SD mountpoint
+#
+# Transfers images from mountpoint subdirectories to the current directory's subfolders
+# named by month when picures were taken. The files transerred are renamed using standard
+# photo filename pattern. 
+#
+# Names of copied destination files w/path are printed at stdout
+
+# Constants
+c_camera_device="/dev/sda1"
+c_destroot="$PWD"
+
+
+# Determine mountpoint by looking up where sda1 is mounted
+if [ $# == 0 ]; then
+	>&2 echo "error: mountpoint path required"
+	exit 1
+else
+	mountpoint="$1"
+fi
+
+#echo Sync from \"$mountpoint\"
+if [ ! -d "$mountpoint" ]; then
+	>&2 echo Cannot access mountpoint "$mountpoint"
+	exit 1
+fi
+
+# Loop through all subdirs supported
+for n in "" "100ncd70" "101ncd70" "100nikon" "102ncd70" "103ncd70" "100nd300" "101nd300" "102nd300" "103nd300"
+do
+	# Special handling of the first (empty) argument enables processing files from root directory
+	# This is useful when specifying a local folder to the input
+	if [ -z "${n}" ]; then
+		sourdir="$mountpoint"
+	else
+		sourdir="$mountpoint/dcim/${n}/"
+	fi
+	if [ -d "$sourdir" ]; then
+		>&2 echo "Sync from \"$sourdir\"" >&2
+		pushd "$sourdir" >/dev/null
+
+		# Loop through all types of files supported
+		for file in *.nef *.NeF *.NEF *.NGF *.tif *.TIF *.jpg *.JPG; do
+
+			# Sort out records that do not relate to actual files, e.g. *.tif or directories
+			if [ -f "$file" ]; then
+
+				# Acquire ISO timestamp. To do this, use exiftool parameterlessly (using -DateTimeOriginal
+				# truncates milliseconds) to get list of available parameters having this name (usually 2 
+				# items are returned). Then sed truncates all excessive info and perl converts the format
+				# to more ISO compliant (YYYY-MM-DD HHMMSSss). Then sort is used to bring the longest string
+				# (i.e. having most precision in seconds fraction) to the top, and head leaves just one string.
+				timestamp=`exiftool "$file" | grep "Date/Time Original" | sed 's/.* ://' | perl -n -e 's/\s*(\d+):(\d+):(\d+)\s+(\d+):(\d+):(\d+).?(\d*)\s*/\1-\2-\3\.\4\5\6\7\n/ and print;' | sort -r | head -n 1`
+				if [[ $! ]]; then
+					>&2 echo Warning: skipping due to errors: $file
+					continue
+				fi
+
+				# Determine destination dir
+				destdir=`echo $timestamp | perl -n -e "/^(?<tsm>\d{4}-\d{2})/ and print $+{tsm};"`
+				destdir="$c_destroot/$destdir"
+				
+				# Determine source file extension and convert it to lower case
+				extension=`expr "$file" : '.*\(\..*\)' | tr "[:upper:]" "[:lower:]"`
+
+				#echo "-- $sourdir $file $timestamp $destdir $extension" >&2
+
+				# Ensure destination directory existence
+				if [ ! -d "$destdir" ]; then
+					mkdir "$destdir"
+				fi
+
+				# Check destination file presence, and uniquize destination file name or find identical file
+				destfile="$timestamp"
+				i=0
+				while [ -f "$destdir/$destfile$extension" ]; do
+					
+					if cmp --quiet "$sourdir$file" "$destdir/$destfile$extension"; then
+						break
+					fi
+					let "i += 1"
+					destfile="$timestamp$i"
+				done
+				# Identical files are not processed
+				if [ -f "$destdir/$destfile$extension" ]; then
+					>&2 echo "-- File $file == $destfile$extension, skipping"
+					continue
+				fi
+				
+				# Copy original file
+				>&2 echo "Copying $file => $destfile$extension..." >&2
+				cp --preserve=timestamps "$file" "$destdir/$destfile$extension"
+				chmod 0644 "$destdir/$destfile$extension"
+
+				# Output the copied filename
+				echo "$destdir/$destfile$extension"
+
+			fi
+		done
+
+		popd >/dev/null
+	fi
+done
+
+echo "Done copying files" >&2
