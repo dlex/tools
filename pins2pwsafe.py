@@ -21,25 +21,35 @@ def try_parse_date(res: datetime, s: str, format: str):
   except ValueError:
     return datetime.min
 
+def parse_date(s: str):
+  res = datetime.min
+  if not s in ['','Никогда','Never']:
+    res = try_parse_date ( res, s, '%d.%m.%Y' )
+    res = try_parse_date ( res, s, '%Y-%m-%d' )
+    res = try_parse_date ( res, s, '%d/%m/%Y' )
+  return res
+
 with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as in_file, open(args.out_file,mode='wt',encoding='utf-8',errors='strict') as out_file:
   read_lines = set()
-  in_line_no = -1
+  # input/output line no being processed, 0 = header line
+  in_line_no = -1 
   out_line_no = 0
   blank_line_no = 0
   dupe_line_no = 0
   failed_line_no = 0
   for in_line in in_file:
     in_line_no += 1
+    in_line = in_line.strip('\n')
+    if in_line == '':
+      blank_line_no += 1
+      continue
     if in_line in read_lines:
       dupe_line_no += 1
       continue
-    try:
-      read_lines.add(in_line)
       
-      src = in_line.strip('\n').split('\t')
-      if src == ['']:
-        blank_line_no += 1
-        continue
+    try:
+      read_lines.add(in_line)     
+      src = in_line.split('\t')
 
       if in_line_no == 0:
         category_si = src.index('Category')
@@ -67,15 +77,8 @@ with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as i
           else:
             notes_v = src[email_si]
         
-        created_time_v = datetime.min
-        if src[start_date_si]!='':
-          created_time_v = try_parse_date ( created_time_v, src[start_date_si], '%d.%m.%Y' )
-          created_time_v = try_parse_date ( created_time_v, src[start_date_si], '%Y-%m-%d' )
-          
-        expiry_time_v = datetime.min
-        if not src[expires_si] in ['','Никогда','Never']:
-          expiry_time_v = try_parse_date ( expiry_time_v, src[expires_si], '%d.%m.%Y' )
-          expiry_time_v = try_parse_date ( expiry_time_v, src[expires_si], '%Y-%m-%d' )        
+        created_time_v = parse_date ( src[start_date_si] )
+        expiry_time_v = parse_date ( src[expires_si] )
           
         if src[more_si]!='':
           if notes_v!='':
@@ -98,6 +101,12 @@ with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as i
       if in_line_no == 0 or args.strict:
         raise
       failed_line_no += 1
+  else:
+    in_line_no += 1
 
-print ( f'{in_line_no} input line(s) processed, including {blank_line_no} blank, {dupe_line_no} dupe, and {failed_line_no} failed line(s)' )
-print ( f'{out_line_no} record(s) written' )
+if in_line_no > 0:
+  print ( f'{in_line_no} input line(s) processed, including 1 header, {blank_line_no} blank, {dupe_line_no} dupe, and {failed_line_no} failed line(s)' )
+else:
+  print ( 'Input file is empty' )
+if out_line_no > 0:
+  print ( f'{out_line_no-1} record(s) written' )
