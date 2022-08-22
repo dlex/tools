@@ -82,7 +82,7 @@ with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as i
           
         if src[more_si]!='':
           if notes_v!='':
-            notes_v += '\n'
+            notes_v += u'»'
           notes_v += src[more_si].replace('||',u'»')
           
         dst = [ 
