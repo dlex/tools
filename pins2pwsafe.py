@@ -27,6 +27,7 @@ def parse_date(s: str):
     res = try_parse_date ( res, s, '%d.%m.%Y' )
     res = try_parse_date ( res, s, '%Y-%m-%d' )
     res = try_parse_date ( res, s, '%d/%m/%Y' )
+    res = try_parse_date ( res, s, '%m/%d/%Y' )
   return res
 
 with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as in_file, open(args.out_file,mode='wt',encoding='utf-8',errors='strict') as out_file:
@@ -66,31 +67,58 @@ with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as i
           'Password', 'URL', 'e-mail', 
           'Created Time', 
           'Password Expiry Date',
+          'History',
           'Notes'
         ]
       else:
         email_v = ''
-        notes_v = ''
+        notes_v = []
         if src[email_si]!='':
           if '@' in src[email_si]:
             email_v = src[email_si]
           else:
-            notes_v = src[email_si]
+            notes_v.append ( src[email_si] )
         
         created_time_v = parse_date ( src[start_date_si] )
         expiry_time_v = parse_date ( src[expires_si] )
-          
+        
         if src[more_si]!='':
-          if notes_v!='':
-            notes_v += u'»'
-          notes_v += src[more_si].replace('||',u'»')
+          notes_v += src[more_si].split('||')
           
+        # convert "old" records in the notes into password history
+        history_v = []
+        notes_v_copy = []
+        for n in notes_v:
+          nl = n.lower()
+          oldp = ''
+          if nl.startswith('old: '):
+            oldp = n[5:]
+          elif nl.startswith('was: '):
+            oldp = n[5:]
+          elif nl.startswith('password was: '):
+            oldp = n[14:]
+          if oldp == '':
+            notes_v_copy.append(n)
+          else:
+            oldpp = oldp.partition(' ')
+            if oldpp[2] != '':
+              oldwhen = parse_date(oldpp[2])
+              if oldwhen == datetime.min:
+                oldwhen = datetime.now()
+              else:
+                oldp = oldpp[0]
+            else:
+              oldwhen = datetime.now()
+            history_v.append ( f"{oldwhen.strftime('%Y/%m/%d %H:%M:%S')} {len(oldp):04x} {oldp}" )
+        
+        notes_vj = u'»'.join(notes_v_copy)
         dst = [ 
           f"{src[category_si]}.{src[system_si]}", src[user_si], 
           src[password_si] if src[password_si]!='' else '---', src[url_si], email_v, 
           created_time_v.strftime('%Y/%m/%d %H:%M:%S') if created_time_v!=datetime.min else '',
           expiry_time_v.strftime('%Y/%m/%d %H:%M:%S') if expiry_time_v!=datetime.min else '',
-          notes_v if notes_v!='' else '""'
+          f"103{len(history_v):02x} {' '.join(history_v)}" if history_v!=[] else '',
+          notes_vj if notes_vj!='' else '""'
         ]
         
       print ( '\t'.join(dst), file=out_file )
