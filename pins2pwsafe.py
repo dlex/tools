@@ -14,7 +14,7 @@ parser.add_argument('--strict', help='Fail conversion if a record processing fai
 args = parser.parse_args()
 
 def try_parse_date(res: datetime, s: str, format: str):
-  if res != datetime.min:
+  if res != datetime.min: 
     return res
   try:
     return datetime.strptime ( s, format )
@@ -29,6 +29,9 @@ def parse_date(s: str):
     res = try_parse_date ( res, s, '%d/%m/%Y' )
     res = try_parse_date ( res, s, '%m/%d/%Y' )
   return res
+
+PWS_LF = u'»'
+system_tt = str.maketrans('.',PWS_LF)
 
 with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as in_file, open(args.out_file,mode='wt',encoding='utf-8',errors='strict') as out_file:
   read_lines = set()
@@ -111,9 +114,9 @@ with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as i
               oldwhen = datetime.now()
             history_v.append ( f"{oldwhen.strftime('%Y/%m/%d %H:%M:%S')} {len(oldp):04x} {oldp}" )
         
-        notes_vj = u'»'.join(notes_v_copy)
+        notes_vj = PWS_LF.join(notes_v_copy)
         dst = [ 
-          f"{src[category_si]}.{src[system_si]}", src[user_si], 
+          f"{src[category_si]}.{src[system_si].translate(system_tt)}", src[user_si], 
           src[password_si] if src[password_si]!='' else '---', src[url_si], email_v, 
           created_time_v.strftime('%Y/%m/%d %H:%M:%S') if created_time_v!=datetime.min else '',
           expiry_time_v.strftime('%Y/%m/%d %H:%M:%S') if expiry_time_v!=datetime.min else '',
