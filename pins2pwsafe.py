@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/python3
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from sys import stderr
 from locale import getpreferredencoding
 import argparse
@@ -29,6 +29,9 @@ def parse_date(s: str):
     res = try_parse_date ( res, s, '%d/%m/%Y' )
     res = try_parse_date ( res, s, '%m/%d/%Y' )
   return res
+
+def format_history(when: datetime, pwd: str):
+  return f"{when.strftime('%Y/%m/%d %H:%M:%S')} {len(pwd):04x} {pwd}"
 
 PWS_LF = u'»'
 system_tt = str.maketrans('.',PWS_LF)
@@ -93,26 +96,46 @@ with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as i
         notes_v_copy = []
         for n in notes_v:
           nl = n.lower()
-          oldp = ''
+          oldpwd_str = ''
           if nl.startswith('old: '):
-            oldp = n[5:]
+            oldpwd_str = n[5:]
+          elif nl.startswith('olds: '):
+            oldpwd_str = n[6:]
           elif nl.startswith('was: '):
-            oldp = n[5:]
+            oldpwd_str = n[5:]
+          elif nl.startswith('old pwd: '):
+            oldpwd_str = n[9:]
+          elif nl.startswith('old pwds: '):
+            oldpwd_str = n[10:]
+          elif nl.startswith('old pass: '):
+            oldpwd_str = n[10:]
           elif nl.startswith('password was: '):
-            oldp = n[14:]
-          if oldp == '':
+            oldpwd_str = n[14:]
+          if oldpwd_str == '':
             notes_v_copy.append(n)
           else:
-            oldpp = oldp.partition(' ')
-            if oldpp[2] != '':
-              oldwhen = parse_date(oldpp[2])
-              if oldwhen == datetime.min:
-                oldwhen = datetime.now()
-              else:
-                oldp = oldpp[0]
+            oldpwd_part = oldpwd_str.partition(' ')
+            one_pwd_per_line = True
+            if oldpwd_part[2] == '':
+              # one token in the line => one pass in the line, date 'unknown'
+              oldwhen = datetime(1970,1,1,0,0,0) 
             else:
-              oldwhen = datetime.now()
-            history_v.append ( f"{oldwhen.strftime('%Y/%m/%d %H:%M:%S')} {len(oldp):04x} {oldp}" )
+              # two or more tokens in the line
+              oldwhen = parse_date(oldpwd_part[2].rstrip())
+              if oldwhen != datetime.min:
+                # second token is a date
+                oldpwd_str = oldpwd_part[0]
+              else:
+                # second token is not a date => can be another pass
+                one_pwd_per_line = False
+                # this one's date 'unknown'
+                oldwhen = datetime(1970,1,1,0,0,0)
+            if one_pwd_per_line:
+              history_v.append ( format_history(oldwhen,oldpwd_str) )
+            else:
+              oldpwd_split = oldpwd_str.split()
+              for p in oldpwd_split:
+                history_v.append ( format_history(oldwhen,p) )
         
         notes_vj = PWS_LF.join(notes_v_copy)
         dst = [ 
@@ -120,7 +143,8 @@ with open(args.in_file,mode='rt',encoding=args.in_encoding,errors='strict') as i
           src[password_si] if src[password_si]!='' else '---', src[url_si], email_v, 
           created_time_v.strftime('%Y/%m/%d %H:%M:%S') if created_time_v!=datetime.min else '',
           expiry_time_v.strftime('%Y/%m/%d %H:%M:%S') if expiry_time_v!=datetime.min else '',
-          f"103{len(history_v):02x} {' '.join(history_v)}" if history_v!=[] else '',
+          # history header: smmnn, s: status (0,1), mm: passwords to keep, nn: password now in the history
+          f"1{len(history_v):02x}{len(history_v):02x} {' '.join(history_v)}" if history_v!=[] else '',
           notes_vj if notes_vj!='' else '""'
         ]
         
